@@ -311,31 +311,49 @@ public:
 		// 
 		while (count > 0) 
 		{
-			bool found_range = FALSE;
+			bool found_range = false;
 			//
-			int i;
-			for (i = 0; i <= MAX_ORDER; i++) 
+			int order;
+			for (order = 0; order <= MAX_ORDER; order++) 
 			{
-				if (_free_areas[i] != NULL) break;
+				//
+				PageDescriptor *current_block = _free_areas[order];
+				if (current_block && !found_range) 
+				{
+					PageDescriptor *block;
+
+					//
+					if (!(current_block <= start && start <= (current_block + pages_per_block(order)))) 
+					{
+						current_block = current_block->next_free;
+					}
+
+					//
+					else 
+					{
+						//
+						block = current_block;
+						for (int i = order; i > 0; i--) 
+						{
+							block = split_block(&block, i);
+
+							//
+							if (start >= (block + pages_per_block(i))) 
+							{
+								block = buddy_of(block, i);
+							}
+						}
+
+						//
+						found_range = true;
+						remove_block(start, 0);
+						start++;
+						count--;
+					}
+				}
+
 			}
 
-			//
-			PageDescriptor *taken_block = _free_areas[i];
-
-			//
-			if (taken_block <= start && start <= (taken_block + pages_per_block(i))) 
-			{
-				found_range = TRUE;
-				remove_block(start, 0);
-				start++;
-				count--;
-			}
-
-			//
-			else 
-			{
-				taken_block = taken_block->next_free;
-			}
 		}
 
     }
