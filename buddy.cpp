@@ -144,9 +144,6 @@ private:
 		// Make sure there is an incoming pointer.
 		assert(*block_pointer);
 
-		// 
-		assert(source_order >=0 && source_order <= MAX_ORDER);
-
 		// Make sure the block_pointer is correctly aligned.
 		assert(is_correct_alignment_for_order(*block_pointer, source_order));
 
@@ -177,9 +174,6 @@ private:
 	{
 		// Make sure there is an incoming pointer.
 		assert(*block_pointer);
-
-		// 
-		assert(source_order >=0 && source_order <= MAX_ORDER);
 
 		// Make sure the area_pointer is correctly aligned.
 		assert(is_correct_alignment_for_order(*block_pointer, source_order));
@@ -233,6 +227,16 @@ public:
 		return block;
 	}
 
+	/**
+	* Helper function
+	* @param pgd A pointer to a page descriptor
+	* @param order The power of two, of the number of contiguous pages
+	*/
+	bool is_free(PageDescriptor *pgd, int order) 
+	{
+		
+	}
+
     /**
 	 * Frees 2^order contiguous pages.
 	 * @param pgd A pointer to an array of page descriptors to be freed.
@@ -245,21 +249,15 @@ public:
 		// illegal to free page 1 in order-1.
 		assert(is_correct_alignment_for_order(pgd, order));
 
-        // 
-		assert(order >=0 && order <= MAX_ORDER);
-
+		PageDescriptor **block = &pgd;
+		insert_block(pgd, order);
 		//
-		PageDescriptor **inserted_block = insert_block(pgd, order);
-		while (order <= MAX_ORDER) 
+		while (order != MAX_ORDER) 
 		{
-			PageDescriptor *block_buddy = buddy_of(*inserted_block, order);
-			PageDescriptor *next_block = (*inserted_block)->next_free;
-			if (block_buddy == next_block) 
-			{
-				inserted_block = merge_block(inserted_block, order);
-				order++;
-			}
-			else break;
+			//
+			PageDescriptor *block_buddy = buddy_of(*block, order);
+			if(is_free(block_buddy, order) == false) break;
+			block = merge_block(block, order++);
 		}
 
     }
@@ -271,28 +269,7 @@ public:
      */
     virtual void insert_page_range(PageDescriptor *start, uint64_t count) override
     {
-        // 
-		auto order = MAX_ORDER;
-		uint64_t pages_left = count;
-
-		//
-		do 
-		{
-			// 
-			uint64_t block_size = pages_per_block(order);
-			auto remainder = pages_left % block_size;
-			auto block_count = (pages_left - remainder) / block_size;
-			PageDescriptor *end = start + block_count * block_size;
-
-			// 
-			while (start < end) 
-			{
-				insert_block(start, order);
-				start += block_size;
-				pages_left -= block_size;
-			}
-
-		} while (pages_left > 0);
+        // TODO
     }
 
     /**
