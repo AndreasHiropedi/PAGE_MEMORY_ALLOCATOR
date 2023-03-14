@@ -228,13 +228,21 @@ public:
 	}
 
 	/**
-	* Helper function
+	* Helper function, checks if the given block at the given order is free
 	* @param pgd A pointer to a page descriptor
 	* @param order The power of two, of the number of contiguous pages
 	*/
-	bool is_free(PageDescriptor *pgd, int order) 
+	bool check_if_free(PageDescriptor *pgd, int order) 
 	{
-		
+		PageDescriptor **position = &_free_areas[order];
+
+		//
+		while (*position && pgd > *position) 
+		{
+			position = &(*position)->next_free;
+		}
+
+		return pgd == *position;
 	}
 
     /**
@@ -256,7 +264,7 @@ public:
 		{
 			//
 			PageDescriptor *block_buddy = buddy_of(*block, order);
-			if(is_free(block_buddy, order) == false) break;
+			if(check_if_free(block_buddy, order) == false) break;
 			block = merge_block(block, order++);
 		}
 
@@ -269,7 +277,21 @@ public:
      */
     virtual void insert_page_range(PageDescriptor *start, uint64_t count) override
     {
-        // TODO
+		mm_log.messagef(LogLevel::DEBUG, "inserting %lx pages from %lx - %lx", count, sys.mm().pgalloc().pgd_to_pfn(start), sys.mm().pgalloc().pgd_to_pfn(start + count));
+		while (count > 0) 
+		{
+			// 
+			int size;
+			for (size = MAX_ORDER; size >= 0; size--) 
+			{
+				if (pages_per_block(size) > count || !is_correct_alignment_for_order(start, size)) continue;
+				else break;
+			}
+
+			free_pages(start, size);
+			start += pages_per_block(size);
+			count -= pages_per_block(size);
+		}
     }
 
     /**
@@ -279,9 +301,11 @@ public:
      */
     virtual void remove_page_range(PageDescriptor *start, uint64_t count) override
     {
-		// 
+		mm_log.messagef(LogLevel::DEBUG, "removing %lx pages from %lx - %lx", count, sys.mm().pgalloc().pgd_to_pfn(start), sys.mm().pgalloc().pgd_to_pfn(start + count));
+		
 		while (count > 0) 
 		{
+			/*
 			bool found_range = false;
 			//
 			int order;
@@ -294,13 +318,7 @@ public:
 					PageDescriptor *block;
 
 					//
-					if ((current_block <= start && start <= (current_block + pages_per_block(order))) == false) 
-					{
-						current_block = current_block->next_free;
-					}
-
-					//
-					else 
+					if (current_block <= start && start <= (current_block + pages_per_block(order)))
 					{
 						//
 						block = current_block;
@@ -321,10 +339,28 @@ public:
 						start++;
 						count--;
 					}
+
+					//
+					else current_block = current_block->next_free;
 				}
 
 			}
+			*/
+			// 
+			int size;
+			for (size = MAX_ORDER; size >= 0; size--) 
+			{
+				if (pages_per_block(size) > count || !is_correct_alignment_for_order(start, size)) continue;
+				else break;
+			}
 
+			PageDescriptor *curr_block;
+			// TODO: implement body of this to get curr_block
+			
+
+			remove_block(curr_block, size);
+			start += pages_per_block(size);
+			count -= pages_per_block(size);
 		}
 
     }
