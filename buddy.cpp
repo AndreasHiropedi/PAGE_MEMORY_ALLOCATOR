@@ -271,9 +271,6 @@ public:
      */
     virtual void insert_page_range(PageDescriptor *start, uint64_t count) override
     {
-		// Make sure parameters are valid.
-		assert(start && count >= 0);
-
         // 
 		auto order = MAX_ORDER;
 		uint64_t pages_left = count;
@@ -305,9 +302,6 @@ public:
      */
     virtual void remove_page_range(PageDescriptor *start, uint64_t count) override
     {
-		// Make sure parameters are valid.
-		assert(start && count >= 0);
-
 		// 
 		while (count > 0) 
 		{
@@ -318,12 +312,12 @@ public:
 			{
 				//
 				PageDescriptor *current_block = _free_areas[order];
-				if (current_block && !found_range) 
+				if (current_block && found_range == false) 
 				{
 					PageDescriptor *block;
 
 					//
-					if (!(current_block <= start && start <= (current_block + pages_per_block(order)))) 
+					if ((current_block <= start && start <= (current_block + pages_per_block(order))) == false) 
 					{
 						current_block = current_block->next_free;
 					}
