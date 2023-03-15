@@ -147,16 +147,17 @@ private:
 		// Make sure the area_pointer is correctly aligned.
 		assert(is_correct_alignment_for_order(*block_pointer, source_order));
 
+		// if the order is 0, then we cannot split the block
 		if (source_order == 0) 
 		{
 			return *block_pointer;
 		}
 
-        // 
+        // get the left and right side of the block
 		PageDescriptor *left = *block_pointer;
 		PageDescriptor *right = left + pages_per_block(source_order - 1);
 
-		//
+		// remove the original block, and replace it with the split block at the lower order
 		remove_block(left, source_order);
 		insert_block(left, source_order - 1);
 		insert_block(right, source_order - 1);
@@ -178,17 +179,19 @@ private:
 		// Make sure the area_pointer is correctly aligned.
 		assert(is_correct_alignment_for_order(*block_pointer, source_order));
 
-        // 
+        // get the block and its buddy, and remove them
 		PageDescriptor *left = *block_pointer;
 		PageDescriptor *right = buddy_of(left, source_order);
 		remove_block(left, source_order);
 		remove_block(right, source_order);
 
-		//
-		PageDescriptor **block_to_insert = is_correct_alignment_for_order(left, source_order + 1) ? 
-		insert_block(left, source_order + 1) : insert_block(right, source_order + 1);
-
-		return block_to_insert;
+		// check for correct alignment, and insert the appropriately merged block at the higher order
+		if (is_correct_alignment_for_order(left, source_order + 1)) 
+		{
+			return insert_block(left, source_order + 1);
+		}
+		return insert_block(right, source_order + 1);
+		
 	}
 
 public:
@@ -200,46 +203,51 @@ public:
 	 */
 	PageDescriptor *allocate_pages(int order) override
 	{
-		//
 		int free;
 		for (free = order; free <= MAX_ORDER; free++) 
 		{
+			// if we have reached the max order, return null since allocation failed
 			if (free == MAX_ORDER && _free_areas[free] == NULL) return NULL;
-			else if (_free_areas[free] != NULL) break;
+			// otherwise continue until the right order is found
+			else if (_free_areas[free] == NULL) continue;
+			// break when correct order is found
+			else break;
 		}
 
-		//
+		// go backwards and keep splitting the block
 		PageDescriptor* block = _free_areas[free];
 		for (int i = free; i > order; i--) 
 		{
 			block = split_block(&block, i);
 		}
 
-		//
+		// lastly, remove the block
 		remove_block(block, order);
 		return block;
 	}
 
 	/**
-	* Helper function, checks if the given block at the given order is free
+	* Helper function, repeatedly merges blocks until they can no longer be merged
 	* @param block_pointer A pointer to a pointer containing a block
 	* @param order The power of two, of the number of contiguous pages
 	*/
 	void repeated_merge(PageDescriptor **block_pointer, int order) 
 	{
-		//
+		// get the current slot (from parameter), current block for given order (from free areas) and the buddy of the current slot
 		int curr_order = order;
 		PageDescriptor **curr_block = block_pointer;
 		PageDescriptor *block = _free_areas[curr_order];
 		PageDescriptor *buddy = buddy_of(*curr_block, curr_order);
 
-		//
+		// as long as we haven't reached max order and there are free areas in the current order
 		while (curr_order < MAX_ORDER && block) 
 		{
+			// keep searching for a buddy in the free slots
 			if (block != buddy) 
 			{
 				block = block->next_free;
 			}
+			// if buddy is free, merge and move to a higher order
 			else 
 			{
 				curr_block = merge_block(curr_block, curr_order++);
@@ -262,6 +270,7 @@ public:
 		// illegal to free page 1 in order-1.
 		assert(is_correct_alignment_for_order(pgd, order));
 		
+		// free requested block, and then continuously merge blocks until it is no longer possible
 		PageDescriptor **block = insert_block(pgd, order);
 		repeated_merge(block, order);
     }
@@ -275,16 +284,17 @@ public:
     {
 		while (count > 0) 
 		{
-			// 
 			int size;
 			for (size = MAX_ORDER; size >= 0; size--) 
 			{
+				// loop through all blocks until the correct range of pages is found
 				if (pages_per_block(size) > count || !is_correct_alignment_for_order(start, size)) continue;
 				else break;
 			}
 
-			// 
+			// free all pages for that order
 			free_pages(start, size);
+			// and update the start and count
 			start += pages_per_block(size);
 			count -= pages_per_block(size);
 		}
@@ -354,13 +364,13 @@ public:
 	 */
 	bool init(PageDescriptor *page_descriptors, uint64_t nr_page_descriptors) override
 	{
-		//
+		// when initialising, mark all blocks as free
         for (unsigned int i = 0; i <= MAX_ORDER; i++) 
 		{
 			_free_areas[i] = NULL;
 		}
 
-		// 
+		// base condition to ensure the parameters are valid
 		return (page_descriptors && nr_page_descriptors > 0);
 	}
 
