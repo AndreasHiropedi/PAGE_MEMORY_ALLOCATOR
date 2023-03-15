@@ -307,51 +307,65 @@ public:
      */
     virtual void remove_page_range(PageDescriptor *start, uint64_t count) override
     {
-		
+		// base case
 		if (count == 0) return;
 
-		pfn_t start_pfn = sys.mm().pgalloc().pgd_to_pfn(start);
-		pfn_t end_pfn = start_pfn + count - 1;
+		// convert page descriptor for start of remove range to a numeric format
+		pfn_t start_as_pfn = sys.mm().pgalloc().pgd_to_pfn(start);
+		pfn_t end_as_pfn = start_as_pfn + count - 1;
 
+		// loop through all possible orders top-down
 		for (uint32_t order = MAX_ORDER; order >= 0; order--) 
 		{
-			int block_size = pages_per_block(order);
+			int curr_block_size = pages_per_block(order);
+			PageDescriptor *curr_block = _free_areas[order];
 
-			PageDescriptor *block = _free_areas[order];
-			while (block) 
+			// as long as the block is not NULL
+			while (curr_block) 
 			{
-				pfn_t block_start = sys.mm().pgalloc().pgd_to_pfn(block);
-				pfn_t block_end = block_start + block_size - 1;
+				// convert page descriptor for the current block to a numeric format
+				pfn_t block_start = sys.mm().pgalloc().pgd_to_pfn(curr_block);
+				pfn_t block_end = block_start + curr_block_size - 1;
 
-				if (block_start > start_pfn) break;
+				// if this is the case, then we break, since the block does not contain the range at all
+				if (block_start > start_as_pfn) break;
 
-				if (block_start <= start_pfn && start_pfn <= block_end) 
+				// if the block contains at least part of the range
+				if (block_start <= start_as_pfn && start_as_pfn <= block_end) 
 				{
-					remove_block(block, order);
+					// remove the whole block
+					remove_block(curr_block, order);
 
 					PageDescriptor *left = sys.mm().pgalloc().pfn_to_pgd(block_start);
 
-					if (end_pfn <= block_end) 
+					// if the range is fully contained in the block
+					if (end_as_pfn <= block_end) 
 					{
-						PageDescriptor *right = sys.mm().pgalloc().pfn_to_pgd(end_pfn + 1);
+						PageDescriptor *right = sys.mm().pgalloc().pfn_to_pgd(end_as_pfn + 1);
 
-						insert_page_range(left, start_pfn - block_start);
-						insert_page_range(right, block_start + block_size - end_pfn - 1);
+						// we re-add the parts of the block outside the remove range
+						insert_page_range(left, start_as_pfn - block_start);
+						insert_page_range(right, block_start + curr_block_size - end_as_pfn - 1);
 					}
 
+					// if not fully contained, then the right side must be in a different block
 					else 
 					{
 						PageDescriptor *right = sys.mm().pgalloc().pfn_to_pgd(block_end + 1);
 
-						insert_page_range(left, start_pfn - block_start);
+						// so we insert the part on the left side that is outside the remove range
+						insert_page_range(left, start_as_pfn - block_start);
 
-						remove_page_range(right, count - (block_end - start_pfn + 1));
+						// and recurse to find the remaining part of the remove range
+						remove_page_range(right, count - (block_end - start_as_pfn + 1));
 					}
 
+					// if reached, it means block was found, so terminate the function
 					return;
 				}
 
-				block = block->next_free;
+				// otherwise we move on to the next block
+				curr_block = curr_block->next_free;
 			}
 
 		}
