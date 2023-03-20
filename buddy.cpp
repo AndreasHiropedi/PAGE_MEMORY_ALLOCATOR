@@ -57,7 +57,7 @@ private:
 	 */
 	PageDescriptor *buddy_of(PageDescriptor *pgd, int order)
 	{
-        // (1) Make sure 'order' is within range
+        	// (1) Make sure 'order' is within range
 		if (order >= MAX_ORDER) 
 		{
 			return NULL;
